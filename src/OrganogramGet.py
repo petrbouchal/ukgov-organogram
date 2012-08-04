@@ -16,6 +16,7 @@ Sep11 = '2011-09-30'
 Mar12 = '2012-31-03'
 
 departments = ['dfe']
+
 datestrings = {}
 datestrings['dfe'] = [Sep11]
 datestrings['dft'] = [Sep11]
@@ -63,10 +64,8 @@ for department in departments:
 
         for post in reports['result']['items']:
             posturlbroken = post['_about']
-            print posturlbroken
 
-            # Get links to level 2 
-
+            # Get links to subordinates of level 2 
             urlbits2 = urlparse.urlparse(posturlbroken)
             newpath2 = urlbits2.path.replace('/id/', '/doc/')
             urlpost2 = urlbits2.scheme + '://' + urlbits2.netloc + '/' + datestring + newpath2 + '.json'
