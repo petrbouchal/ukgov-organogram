@@ -21,8 +21,21 @@ datestrings = {}
 datestrings['dfe'] = [Sep11]
 datestrings['dft'] = [Sep11]
 
+def postsjson(origurl, posttype='report'):
+    urlbits = urlparse.urlparse(origurl)
+    newpath = urlbits.path.replace('/id/', '/doc/')
+    if posttype == 'top':
+        post = 'toppost'
+    elif posttype == 'report':
+        post = 'reports-full'
+    elif posttype == 'junior':
+        post = 'immediate-junior-staff'
+    urlpost = urlbits.scheme + '://' + urlbits.netloc + '/' + datestring + newpath + '/' + post + '.json'
+    returnedposts = json.loads(urllib2.urlopen(urlpost).read())
+    return returnedposts
+
 for department in departments:
-    for datestring in datestrings[departments]:
+    for datestring in datestrings[department]:
 
         # Top level - Perm Sec
 
@@ -42,60 +55,50 @@ for department in departments:
 
         # Get links to people in level 1 - reporting to perm sec
 
-        reportsurl = urlbits.scheme + '://' + urlbits.netloc + '/' + datestring + newpath + '/reports-full' + '.json'
-        print reportsurl
+        reports1 = postsjson(topposturlbroken, 'report')
+        pprint(reports1)
 
-        juniorstaffurl = urlbits.scheme + '://' + urlbits.netloc + '/' + datestring + newpath + '/immediate-junior-staff' + '.json'
-        print reportsurl
-
-        reports = json.loads(urllib2.urlopen(reportsurl).read())
-
-        juniors = json.loads(urllib2.urlopen(juniorstaffurl).read())
+        juniors1 = postsjson(topposturlbroken, 'junior')
+        pprint(juniors1)
 
         #Run through junior staff reporting to perm sec
 
-        for post in juniors['result']['items']:
-            posturlbroken = post['label'][0]
-            print posturlbroken
-
-        pprint(reports)
+        for post in juniors1['result']['items']:
+            juniorpostlabel = post['label'][0]
+            print juniorpostlabel
 
         # run through senior people reporting to perm sec - level 1
 
-        for post in reports['result']['items']:
+        for post in reports1['result']['items']:
             posturlbroken = post['_about']
 
-            # Get links to subordinates of level 2 
-            urlbits2 = urlparse.urlparse(posturlbroken)
-            newpath2 = urlbits2.path.replace('/id/', '/doc/')
-            urlpost2 = urlbits2.scheme + '://' + urlbits2.netloc + '/' + datestring + newpath2 + '.json'
-            post2 = json.loads(urllib2.urlopen(urlpost2).read())
+            # now level 2
 
-            urlreports2 = urlbits2.scheme + '://' + urlbits2.netloc + '/' + datestring + newpath2 + '/reports-full.json'
-            reports2 = json.loads(urllib2.urlopen(urlreports2).read())
-            print urlreports2
+            juniors2 = postsjson(posturlbroken, 'junior')
+            for post in juniors2['results']['items']: print post['label'][0]
 
-            # run through level 2 people 
+            reports2 = postsjson(posturlbroken)
 
             for post in reports2['result']['items']:
                 print post['label'][0]
+                posturlbroken = post['_about']
 
-                for post in reports['result']['items']:
+                # retrieve level 3 people
+
+                juniors3 = postsjson(posturlbroken, 'junior')
+                for post in juniors3['results']['items']: print post['label'][0]
+
+                reports3 = postsjson(posturlbroken)
+
+                for post in reports3['result']['items']:
                     posturlbroken = post['_about']
                     print posturlbroken
 
-                    # Get links to level 2 
+                    juniors4 = postsjson(posturlbroken, 'junior')
+                    for post in juniors4['results']['items']: print post['label'][0]
 
-                    urlbits2 = urlparse.urlparse(posturlbroken)
-                    newpath2 = urlbits2.path.replace('/id/', '/doc/')
-                    urlpost2 = urlbits2.scheme + '://' + urlbits2.netloc + '/' + datestring + newpath2 + '.json'
-                    post2 = json.loads(urllib2.urlopen(urlpost2).read())
+                    reports4 = postsjson(posturlbroken)
 
-                    urlreports2 = urlbits2.scheme + '://' + urlbits2.netloc + '/' + datestring + newpath2 + '/reports-full.json'
-                    reports2 = json.loads(urllib2.urlopen(urlreports2).read())
-                    print urlreports2
-
-                    # run through level 2 people 
-
-                    for post in reports2['result']['items']:
+                    for post in reports4['result']['items']:
                         print post['label'][0]
+                        posturlbroken = post['_about']
