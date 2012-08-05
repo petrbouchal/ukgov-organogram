@@ -27,11 +27,16 @@ def postsjson(origurl, posttype='report'):
     if posttype == 'top':
         post = 'toppost'
     elif posttype == 'report':
+        post = 'immediate-reports'
+    elif posttype == 'allreport':
         post = 'reports-full'
     elif posttype == 'junior':
         post = 'immediate-junior-staff'
+    elif posttype == 'stats':
+        post = 'statistics'
     urlpost = urlbits.scheme + '://' + urlbits.netloc + '/' + datestring + newpath + '/' + post + '.json'
     returnedposts = json.loads(urllib2.urlopen(urlpost).read())
+    print urlpost
     return returnedposts
 
 for department in departments:
@@ -39,27 +44,22 @@ for department in departments:
 
         # Top level - Perm Sec
 
+        level = 0
+
         topurl = 'http://reference.data.gov.uk/' + datestring + '/doc/department/' + department + '/top-post.json'
         toppost = json.loads(urllib2.urlopen(topurl).read())
 
-        pprint(toppost)
         topposturlbroken = toppost['result']['items'][0]['_about']
         print topposturlbroken
 
-        urlbits = urlparse.urlparse(topposturlbroken)
-
-        newpath = urlbits.path.replace('/id/', '/doc/')
-
-        urlnew = urlbits.scheme + '://' + urlbits.netloc + '/' + datestring + newpath + '.json'
-        print urlnew
-
         # Get links to people in level 1 - reporting to perm sec
 
-        reports1 = postsjson(topposturlbroken, 'report')
-        pprint(reports1)
+        level = 1
 
+        reports1 = postsjson(topposturlbroken, 'report')
         juniors1 = postsjson(topposturlbroken, 'junior')
-        pprint(juniors1)
+
+        stats1 = postsjson(topposturlbroken, stats)
 
         #Run through junior staff reporting to perm sec
 
@@ -74,8 +74,10 @@ for department in departments:
 
             # now level 2
 
+            level = 2
+
             juniors2 = postsjson(posturlbroken, 'junior')
-            for post in juniors2['results']['items']: print post['label'][0]
+            for post in juniors2['result']['items']: print post['label'][0]
 
             reports2 = postsjson(posturlbroken)
 
@@ -85,8 +87,10 @@ for department in departments:
 
                 # retrieve level 3 people
 
+                level = 3
+
                 juniors3 = postsjson(posturlbroken, 'junior')
-                for post in juniors3['results']['items']: print post['label'][0]
+                for post in juniors3['result']['items']: print post['label'][0]
 
                 reports3 = postsjson(posturlbroken)
 
@@ -94,11 +98,15 @@ for department in departments:
                     posturlbroken = post['_about']
                     print posturlbroken
 
+                    level = 4
+
                     juniors4 = postsjson(posturlbroken, 'junior')
-                    for post in juniors4['results']['items']: print post['label'][0]
+                    for post in juniors4['result']['items']: print post['label'][0]
 
                     reports4 = postsjson(posturlbroken)
 
                     for post in reports4['result']['items']:
                         print post['label'][0]
                         posturlbroken = post['_about']
+
+                        reports5 = postsjson(posturlbroken)
