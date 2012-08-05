@@ -2,17 +2,20 @@
 Created on Aug 4, 2012
 
 @author: petrbouchal
-'''
+ 
+Build DB/CSV from government organogram API, one post per line.'''
 
-output = 'csv' # should be csv, scraperwiki, or scraperwiki_local
+output = 'scraperwiki' # should be csv, scraperwiki, both, or none
 
 import json
 import urllib2
 from urllib2 import urlparse
-from pprint import pprint
 import csv
 from datetime import datetime
 #from pprint import pprint
+
+import scraperwiki
+
 now = datetime.now()
 today = datetime.today()
 
@@ -22,17 +25,18 @@ datetimestring = datetime.strftime(now, '%Y-%m-%d %H:%M:%S')
 filedatestring = datetime.strftime(now, '%Y%m%d_%H%M')
 
 # build header
-fieldnames = {}
+fieldnames = ['level', 'label', 'FTE']
 
 # prepare for writing
-csvout = "../output/Organograms" + '_' + filedatestring + '.csv'
-csvout_final = '../output/Organograms_current'
-writer = csv.DictWriter(open(csvout, 'wb'), csv.QUOTE_ALL, fieldnames=fieldnames)
+if ((output == 'csv') | (output == 'both')):
+    csvout = "../output/Organograms" + '_' + filedatestring + '.csv'
+    csvout_final = '../output/Organograms_current'
+    outfile = open(csvout, 'wb')
+    writer = csv.DictWriter(outfile, delimiter=',', dialect='excel', fieldnames=fieldnames)
 
-headers = {}
-for n in fieldnames:
-    headers[n] = n
-writer.writerow(headers)
+
+# write header
+if ((output == 'csv') | (output == 'both')): writer.writerow(dict((fn, fn) for fn in fieldnames))
 
 # create list of dates and dates in departments
 Mar11 = '2011-03-31'
@@ -45,20 +49,21 @@ datestrings = {}
 datestrings['dfe'] = [Sep11]
 datestrings['dft'] = [Sep11]
 
-def postsjson(origurl, posttype='report'):
+def postsjson(origurl, datatype='report'):
+    """ Return iterable JSON of posttype got by updating and querying origurl"""
     urlbits = urlparse.urlparse(origurl)
     newpath = urlbits.path.replace('/id/', '/doc/')
-    if posttype == 'top':
-        post = 'toppost'
-    elif posttype == 'report':
-        post = 'immediate-reports'
-    elif posttype == 'allreport':
-        post = 'reports-full'
-    elif posttype == 'junior':
-        post = 'immediate-junior-staff'
-    elif posttype == 'stats':
-        post = 'statistics'
-    urlpost = urlbits.scheme + '://' + urlbits.netloc + '/' + datestring + newpath + '/' + post + '.json'
+    if datatype == 'info':
+        post = ''
+    elif datatype == 'report':
+        post = '/immediate-reports'
+    elif datatype == 'allreport':
+        post = '/reports-full'
+    elif datatype == 'junior':
+        post = '/immediate-junior-staff'
+    elif datatype == 'stats':
+        post = '/statistics'
+    urlpost = urlbits.scheme + '://' + urlbits.netloc + '/' + datestring + newpath + post + '.json'
     returnedposts = json.loads(urllib2.urlopen(urlpost).read())
     print urlpost
     return returnedposts
@@ -74,27 +79,37 @@ for department in departments:
         topurl = 'http://reference.data.gov.uk/' + datestring + '/doc/department/' + department + '/top-post.json'
         toppost = json.loads(urllib2.urlopen(topurl).read())
 
-        topposturlbroken = toppost['result']['items'][0]['_about']
+        topurl2 = toppost['result']['items'][0]['_about']
+        print topurl2
 
         print topurl
-        topstats = postsjson(topposturlbroken, 'stats')
+        topstats = postsjson(topurl2, 'stats')
+        topinfo = postsjson(topurl2, 'info')
+
+        row = {}
+        row['level'] = level
+        row['label'] = topinfo['result']['primaryTopic']['label'][0]
+        row['FTE'] = topinfo['result']['primaryTopic']['heldBy'][0]['tenure']['workingTime']
+        print row
+        if ((output == 'csv') | (output == 'both')): writer.writerow(row)
+        if ((output == 'csv') | (output == 'both')): outfile.close()
+        if ((output == 'scraperwiki') | (output == 'both')): scraperwiki.sqlite.save(['level', 'label'], row)
 
         # Get links to people in level 1 - reporting to perm sec
 
         level = 1
         print 'Level' + str(level)
-        row = {}
-        # build row here - from toppost and topstats
-        # write row here
-
-        reports1 = postsjson(topposturlbroken, 'report')
-        juniors1 = postsjson(topposturlbroken, 'junior')
+        reports1 = postsjson(topurl2, 'report')
+        juniors1 = postsjson(topurl2, 'junior')
 
         #Run through junior staff reporting to perm sec
 
         for post in juniors1['result']['items']:
             juniorpostlabel = post['label'][0]
             row = {}
+            row['level'] = level
+            row['label'] = juniorpostlabel
+            row['FTE'] = ''
             # set up row here from post 
             # write row here
             print juniorpostlabel
@@ -103,13 +118,16 @@ for department in departments:
 
         for post in reports1['result']['items']:
             posturlbroken = post['_about']
+            print post['label'][0]
 
+            info1 = postsjson(posturlbroken, 'info')
             stats1 = postsjson(posturlbroken, 'stats')
+            row = {}
+            row = {}
 
             # now level 2
 
             level = 2
-            row = {}
             # set up row here from post and stats1
             # write row here
 
@@ -117,16 +135,20 @@ for department in departments:
             for post in juniors2['result']['items']:
                 print post['label'][0]
                 row = {}
+                row = {}
                 # set up row here
                 # write row here
-
 
             reports2 = postsjson(posturlbroken)
 
             for post in reports2['result']['items']:
                 print post['label'][0]
                 posturlbroken = post['_about']
+
+                info2 = postsjson(posturlbroken, 'info')
                 stats2 = postsjson(posturlbroken, 'stats')
+                print post['label'][0]
+                row = {}
                 row = {}
                 # set up row here from post and stats1
                 # write row here
@@ -139,6 +161,7 @@ for department in departments:
                 for post in juniors3['result']['items']:
                     print post['label'][0]
                     row = {}
+                    row = {}
                     # set up row here
                     # write row here
 
@@ -147,7 +170,11 @@ for department in departments:
                 for post in reports3['result']['items']:
                     posturlbroken = post['_about']
                     print posturlbroken
+
+                    info3 = postsjson(posturlbroken, 'info')
                     stats3 = postsjson(posturlbroken, 'stats')
+                    print post['label'][0]
+                    row = {}
                     row = {}
                     # set up row here from post and stats
                     # write row here
@@ -158,6 +185,7 @@ for department in departments:
                     for post in juniors4['result']['items']:
                         print post['label'][0]
                         row = {}
+                        row = {}
                         # set up row here
                         # write row here
 
@@ -166,7 +194,10 @@ for department in departments:
                     for post in reports4['result']['items']:
                         print post['label'][0]
                         posturlbroken = post['_about']
+
+                        info4 = postsjson(posturlbroken, 'info')
                         stats4 = postsjson(posturlbroken, 'stats')
+                        row = {}
                         row = {}
                         # set up row here from post and stats4
                         # write row here
@@ -174,6 +205,7 @@ for department in departments:
                         juniors5 = postsjson(posturlbroken, 'junior')
                         for post in juniors5:
                             print post['label'][0]
+                            row = {}
                             row = {}
                             # set up row here
                             # write row here
