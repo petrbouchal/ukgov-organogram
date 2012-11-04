@@ -7,12 +7,11 @@ Build DB/CSV from government organogram API, one post per line.'''
 
 output = 'scraperwiki' # should be csv, scraperwiki, both, or none
 
-import json
+import json, csv
+from pprint import pprint
 import urllib2
 from urllib2 import urlparse
-import csv
 from datetime import datetime
-#from pprint import pprint
 
 import scraperwiki
 
@@ -43,11 +42,11 @@ Mar11 = '2011-03-31'
 Sep11 = '2011-09-30'
 Mar12 = '2012-31-03'
 
-departments = ['dfe']
+departments = ['dfe', 'dft', 'moj']
 
 datestrings = {}
-datestrings['dfe'] = [Sep11]
-datestrings['dft'] = [Sep11]
+datestrings['dfe'] = [Sep11, Mar11]
+datestrings['dft'] = [Sep11, Mar11]
 
 def postsjson(origurl, datatype='report'):
     """ Return iterable JSON of posttype got by updating and querying origurl"""
@@ -78,22 +77,83 @@ for department in departments:
 
         topurl = 'http://reference.data.gov.uk/' + datestring + '/doc/department/' + department + '/top-post.json'
         toppost = json.loads(urllib2.urlopen(topurl).read())
+        print "TOPPOST"
+        pprint(toppost)
 
         topurl2 = toppost['result']['items'][0]['_about']
         print topurl2
 
         print topurl
         topstats = postsjson(topurl2, 'stats')
-        topinfo = postsjson(topurl2, 'info')
+        print 'TOPSTATS:'
+        pprint(topstats)
 
-        row = {}
-        row['level'] = level
-        row['label'] = topinfo['result']['primaryTopic']['label'][0]
-        row['FTE'] = topinfo['result']['primaryTopic']['heldBy'][0]['tenure']['workingTime']
-        print row
-        if ((output == 'csv') | (output == 'both')): writer.writerow(row)
-        if ((output == 'csv') | (output == 'both')): outfile.close()
-        if ((output == 'scraperwiki') | (output == 'both')): scraperwiki.sqlite.save(['level', 'label'], row)
+        topinfo = postsjson(topurl2, 'info')
+        print 'TOPINFO'
+        pprint(topinfo)
+
+        postid = toppost['result']['items'][0]['_about']
+
+        post0row = {
+                'postid' : postid,
+                'dept' : department,
+                'timestamp' : today,
+                'datebatch' : datestring,
+                'Level' : level,
+                'JobTitle' : topinfo['result']['primaryTopic']['label'][0],
+                'Grade' : topinfo['result']['primaryTopic']['grade']['label'][0],
+                'SalaryRange' : topinfo['result']['primaryTopic']['salaryRange']['label'][0],
+                'Comment' : topinfo['result']['primaryTopic']['comment'],
+                'HeldByName' : topinfo['result']['primaryTopic']['heldBy'][0]['name'],
+                'senior' : '1',
+                'SalaryCostOfReports' : topstats['result']['items'][0]['salaryCostOfReports']
+                }
+        print post0row
+
+        scraperwiki.sqlite.save(unique_keys=['timestamp', 'dept', 'level', 'JobTitle', 'senior'],
+                                data=post0row, table_name='Posts')
+
+        for holder in topinfo['result']['primaryTopic']['heldBy']:
+            personid = ''
+            row0person = {
+                          'timestamp' : today,
+                          'personid' : personid,
+                          'dept' : department,
+                          'datebatch' : datestring,
+                          'name' : holder['name'],
+                          'email' : holder['email']['label'][0],
+                          'phone' : holder['phone']['label'][0],
+                          'profession' : topinfo['result']['primaryTopic']['heldBy'][0]['profession']['prefLabel'][0],
+                          'FTE' : topinfo['result']['primaryTopic']['heldBy'][0]['tenure']['workingTime'],
+                          }
+
+            scraperwiki.sqlite.save(unique_keys=['timestamp', 'datebatch', 'dept', 'name'],
+                                    data=row0person, table_name="Persons")
+
+            personjoblinkrow = {
+                                'personid' : personid,
+                                'postid' : postid
+                                }
+            scraperwiki.sqlite.save(unique_keys=['personid', 'postid'],
+                                    data=personjoblinkrow, table_name="PersonPostLink")
+
+        for org in topinfo['result']['primaryTopic']['postIn']:
+            orgid = org['_about']
+            orgrow = {
+                      'org' : org['label'][0],
+                      'orgid' : orgid,
+                      'dept' : department,
+                      }
+            scraperwiki.sqlite.save(unique_keys=['orgid', 'dept'],
+                                    data=orgrow, table_name="Organisations")
+
+            orgpostlink = {'orgid' : orgid,
+                           'postid' : postid
+                           }
+            scraperwiki.sqlite.save(unique_keys=['orgid', 'postid'],
+                                    data=orgpostlink, table_name="OrgPostLink")
+
+        continue
 
         # Get links to people in level 1 - reporting to perm sec
 
@@ -102,14 +162,20 @@ for department in departments:
         reports1 = postsjson(topurl2, 'report')
         juniors1 = postsjson(topurl2, 'junior')
 
-        #Run through junior staff reporting to perm sec
+        # run through junior staff reporting to perm sec
 
         for post in juniors1['result']['items']:
+
+            pprint(post)
+
             juniorpostlabel = post['label'][0]
-            row = {}
-            row['level'] = level
-            row['label'] = juniorpostlabel
-            row['FTE'] = ''
+            row = {
+                ['level'] : level,
+                ['label'] : juniorpostlabel,
+                ['FTE'] : '',
+                ['dept'] : department,
+                ['name'] : 'NA'
+            }
             # set up row here from post 
             # write row here
             print juniorpostlabel
@@ -120,10 +186,21 @@ for department in departments:
             posturlbroken = post['_about']
             print post['label'][0]
 
+            print post
+
             info1 = postsjson(posturlbroken, 'info')
             stats1 = postsjson(posturlbroken, 'stats')
-            row = {}
-            row = {}
+            row1 = {'dept' : department,
+                    'timestamp' : now,
+                    'level' : level,
+                    'label' : '',
+                    'senior' : 1,
+                    'FTE' : post['result']
+                    }
+
+            if ((output == 'scraperwiki') | (output == 'both')):
+                scraperwiki.sqlite.save(unique_keys=['timestamp', 'dept', 'level', 'label', 'senior'],
+                                        data=rows, table='Organogram')
 
             # now level 2
 
@@ -135,7 +212,7 @@ for department in departments:
             for post in juniors2['result']['items']:
                 print post['label'][0]
                 row = {}
-                row = {}
+                row1 = {}
                 # set up row here
                 # write row here
 
@@ -209,5 +286,7 @@ for department in departments:
                             row = {}
                             # set up row here
                             # write row here
+
+
 
 
