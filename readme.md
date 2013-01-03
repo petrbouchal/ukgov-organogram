@@ -28,7 +28,7 @@ Mechanics
 5. gets list of junior posts reporting directly to top job
 6. gets basic data on posts listed in 5
 7. repeats 2-6 for each non-junior post reporting to top post, as gathered in 4
-8. repeat for next level down
+8. repeat for next level of reports down
 
 Policy context/things to watch for
 ---------
