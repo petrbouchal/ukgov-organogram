@@ -96,12 +96,23 @@ def postsjson(origurl, datatype='report'):
     print urlpost
     return returnedposts
 
+def TraverseJobs(joburl):
+    jobjson = json.loads(urllib2.urlopen(joburl).read())
+    jobabout = jobjson['_about']
+    print(jobabout)
+
+TraverseJobs('http://reference.data.gov.uk/2012-09-30/doc/department/dft/top-post.json')
+
+quit
+
+
 
 for org in orglist:
 
     url = org['URL'].replace('/id/', '/' + org['Date'] + '/doc/')
     print url
     orgname = org['OrgName']
+    print orgname
 
     # Top level - Perm Sec
 
